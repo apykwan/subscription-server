@@ -78,63 +78,114 @@ exports.login = async (req, res) => {
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 exports.googleLogin = async (req, res) => {
     const { idToken } = req.body;
-    console.log(idToken);
-    try {
-        const response  = await client.verifyIdToken({ idToken, audience: process.env.GOOGLE_CLIENT_ID });
-        const { email_verified, name, email } = response.payload;
-        console.log(response.payload);
-        if (email_verified) {
-            try {
-                let user = await User.findOne({ email });
-                if (user) {
-                    const token = jwt.sign(
-                        { _id: user._id }, 
-                        process.env.JWT_SECRET,
-                        { expiresIn: "77d" }
-                    );
 
-                    const { password, ...rest } = user._doc;
+    const response  = await client.verifyIdToken({ idToken, audience: process.env.GOOGLE_CLIENT_ID });
+    const { email_verified, name, email } = response.payload;
+
+    if (email_verified) {
+        try {
+            let user = await User.findOne({ email });
+
+            // If the entered email has already been registered
+            if (user) {
+                const token = jwt.sign(
+                    { _id: user._id }, 
+                    process.env.JWT_SECRET,
+                    { expiresIn: "77d" }
+                );
+                
+                const { password, ...rest } = user._doc;
                     return res.json({
                         token,
                         user: rest
                     });
                 }
                 
-                let passwordGeneration = email + process.env.JWT_SECRET;
-                const hashedPassword = await hashPassword(passwordGeneration);
-                const customer = await stripe.customers.create({
-                    email,
-                });
-                
-                user = await new User({
-                    name,
-                    email,
-                    password: hashedPassword,
-                    stripe_customer_id: customer.id
-                });
+            let passwordGeneration = email + process.env.JWT_SECRET;
+            const hashedPassword = await hashPassword(passwordGeneration);
+            const customer = await stripe.customers.create({ email });    
+            user = await new User({
+                name,
+                email,
+                password: hashedPassword,
+                stripe_customer_id: customer.id
+            });
+            user.save();  
 
+            const token = jwt.sign(
+                { _id: user._id }, 
+                process.env.JWT_SECRET,
+                { expiresIn: "77d" }
+            );
+            const { password, ...rest } = user._doc;                
+            return res.status(200).json({
+                token,
+                user: rest
+            }); 
+        } catch (err) {
+            res.status(400).json({
+                    error: 'Sign up with Google failed!'
+            });
+        }
+    } else {
+        return res.status(400).json({
+            error: 'Google login failed. Try again'
+        });
+    }
+};
+
+exports.facebookLogin = async (req, res) => {
+    const { name, email } = req.body;
+
+    if (email) {
+        try {
+            let user = await User.findOne({ email });
+
+            // If the entered email has already been registered
+            if (user) {
+                const token = jwt.sign(
+                    { _id: user._id }, 
+                    process.env.JWT_SECRET,
+                    { expiresIn: "77d" }
+                );
                 const { password, ...rest } = user._doc;
-
-                user.save();  
                 return res.json({
                     token,
                     user: rest
-                }) 
-
-            } catch (err) {
-                res.status(400).json({
-                    error: 'Sign up with Google failed!'
                 });
             }
-        } else {
-            return res.json(400).json({
-                error: 'Google login failed. Try again'
+                
+            let passwordGeneration = email + process.env.JWT_SECRET;
+            const hashedPassword = await hashPassword(passwordGeneration);
+            const customer = await stripe.customers.create({ email });
+                
+            user = await new User({
+                name,
+                email,
+                password: hashedPassword,
+                stripe_customer_id: customer.id
+            });
+            user.save();  
+            
+            const token = jwt.sign(
+                { _id: user._id }, 
+                process.env.JWT_SECRET,
+                { expiresIn: "77d" }
+            );
+            const { password, ...rest } = user._doc;           
+            return res.status(200).json({
+                token,
+                user: rest
+            }); 
+        } catch (err) {
+            console.log(err);
+            res.status(400).json({
+                error: 'Sign up with Facebook failed!'
             });
         }
-    } catch (err) {
-        res.status(400).json({
-             error: 'Sign up with Google failed!'
+    } else {
+        return res.json({
+            error: 'Facebook login failed. Try again'
         });
     }
-
 };

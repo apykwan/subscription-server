@@ -19,7 +19,6 @@
     "google-auth-library": "^7.14.0",
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^6.2.4",
-    "morgan": "^1.10.0",
     "nodemon": "^2.0.15",
     "stripe": "^8.207.0"
   }
